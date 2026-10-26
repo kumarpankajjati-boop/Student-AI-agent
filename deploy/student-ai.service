@@ -1,0 +1,24 @@
+# systemd service file (Day 6). Keeps the API running and restarts it if it crashes.
+#
+# On a Linux server (or WSL with systemd):
+#   sudo nano /etc/systemd/system/student-ai.service     (paste this, Ctrl+O Enter, Ctrl+X)
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now student-ai
+#   sudo systemctl status student-ai
+#
+# Change User and the two paths to match your server.
+
+[Unit]
+Description=Student Management API with AI Agent
+After=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/student-ai-agent-v2
+ExecStart=/home/admin/student-ai-agent-v2/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+# One-click public deploy on Render (https://render.com) using Gemini, so the live link
+# works even when your laptop is off. Ollama cannot run on a free host, so Gemini is used there.
+services:
+  - type: web
+    name: student-ai-agent
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-gemini.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: SEED_DEMO_DATA
+        value: "true"
+      - key: LOG_FILE
+        value: logs/app.log
+      - key: GOOGLE_API_KEY
+        sync: false   # you paste the key in Render's dashboard, never in GitHub

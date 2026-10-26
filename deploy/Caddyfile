@@ -1,0 +1,11 @@
+# Reverse proxy (Day 6): the outside world talks to Caddy on ports 80/443.
+# Caddy forwards to your app, so the app's own port is never exposed directly.
+# Replace the domain with yours (point its DNS A record to the server's public IP first).
+
+api.yourdomain.com {
+    reverse_proxy 127.0.0.1:8000
+}
+
+n8n.yourdomain.com {
+    reverse_proxy 127.0.0.1:5678
+}

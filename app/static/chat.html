@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Student AI Agent</title>
+<style>
+  :root { --bg:#f5f7fb; --card:#fff; --ink:#1b2430; --muted:#6b7785; --brand:#1f6feb; --me:#1f6feb; --bot:#eef2f7; --line:#dde3ec; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f141b; --card:#171e28; --ink:#e6edf5; --muted:#8fa0b3; --bot:#222c39; --line:#2a3544; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; display:flex; flex-direction:column; min-height:100vh; gap:12px; }
+  header { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px; }
+  h1 { font-size:20px; margin:0; }
+  header a { color:var(--brand); font-size:14px; text-decoration:none; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  #log { flex:1; min-height:260px; max-height:55vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+  .msg { max-width:86%; padding:9px 12px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; }
+  .me { align-self:flex-end; background:var(--me); color:#fff; }
+  .bot { align-self:flex-start; background:var(--bot); }
+  .err { color:#c0392b; }
+  form { display:flex; gap:8px; }
+  input[type=text] { flex:1; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--ink); font-size:16px; }
+  button { padding:11px 16px; border:0; border-radius:10px; background:var(--brand); color:#fff; font-size:16px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { background:var(--bot); color:var(--ink); border:1px solid var(--line); padding:6px 10px; font-size:13px; border-radius:999px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  .scroll { overflow-x:auto; }
+  small { color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Student AI Agent</h1>
+    <span><a href="/docs">API docs</a> &middot; <a href="#" id="reset">New chat</a></span>
+  </header>
+
+  <div class="card">
+    <div class="chips" id="chips">
+      <button type="button" class="chip">How many students are there?</button>
+      <button type="button" class="chip">Which students are in class 10?</button>
+      <button type="button" class="chip">Who is the oldest student?</button>
+    </div>
+  </div>
+
+  <div class="card" id="log" aria-live="polite">
+    <div class="msg bot">Hi! Ask me anything about the student records.</div>
+  </div>
+
+  <form id="form" class="card">
+    <input type="text" id="q" placeholder="Type your question" autocomplete="off" required>
+    <button id="send" type="submit">Send</button>
+  </form>
+
+  <div class="card">
+    <strong>Students in the database</strong>
+    <div class="scroll"><table id="tbl"><thead><tr><th>ID</th><th>Name</th><th>Class</th><th>Sec</th><th>Subject</th><th>Age</th></tr></thead><tbody></tbody></table></div>
+    <small id="count"></small>
+  </div>
+</div>
+
+<script>
+  var sid = "web-" + Math.random().toString(36).slice(2, 10);
+  try { sid = localStorage.getItem("sid") || sid; localStorage.setItem("sid", sid); } catch (e) {}
+
+  var log = document.getElementById("log");
+  var form = document.getElementById("form");
+  var input = document.getElementById("q");
+  var send = document.getElementById("send");
+
+  function add(text, cls) {
+    var d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    return d;
+  }
+
+  async function ask(question) {
+    add(question, "me");
+    var wait = add("Thinking... (the first answer can take up to a minute)", "bot");
+    send.disabled = true;
+    try {
+      var res = await fetch("/query-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_question: question, session_id: sid })
+      });
+      var data = await res.json();
+      if (!res.ok) throw new Error(data.detail || ("Error " + res.status));
+      wait.textContent = data.response;
+    } catch (e) {
+      wait.textContent = "Sorry, that failed: " + e.message;
+      wait.classList.add("err");
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  }
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var q = input.value.trim();
+    if (!q) return;
+    input.value = "";
+    ask(q);
+  });
+
+  document.getElementById("chips").addEventListener("click", function (ev) {
+    if (ev.target.classList.contains("chip")) ask(ev.target.textContent);
+  });
+
+  document.getElementById("reset").addEventListener("click", function (ev) {
+    ev.preventDefault();
+    fetch("/reset-memory/" + encodeURIComponent(sid), { method: "POST" }).catch(function () {});
+    log.innerHTML = "";
+    add("New chat started. Ask me anything about the student records.", "bot");
+  });
+
+  async function loadStudents() {
+    try {
+      var res = await fetch("/students/");
+      var rows = await res.json();
+      var tb = document.querySelector("#tbl tbody");
+      tb.innerHTML = "";
+      rows.forEach(function (s) {
+        var tr = document.createElement("tr");
+        [s.id, s.student_name, s.student_class, s.student_section, s.subject, s.age].forEach(function (v) {
+          var td = document.createElement("td");
+          td.textContent = v;
+          tr.appendChild(td);
+        });
+        tb.appendChild(tr);
+      });
+      document.getElementById("count").textContent = rows.length + " student(s)";
+    } catch (e) {
+      document.getElementById("count").textContent = "Could not load students.";
+    }
+  }
+  loadStudents();
+</script>
+</body>
+</html>
